@@ -12,6 +12,7 @@
 /build
 
 # misc
+/PDF_to_Speech/data/credentials.json
 .env
 .DS_Store
 .env.local
