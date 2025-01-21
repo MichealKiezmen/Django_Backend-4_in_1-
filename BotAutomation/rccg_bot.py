@@ -10,8 +10,8 @@ load_dotenv(override=True)
 USER = os.getenv("USERNAME")
 PASSSWORD = os.getenv("PASSWORD")
 
-print(USER)
-print(PASSSWORD)
+# print(USER)
+# print(PASSSWORD)
 
 chrome_options = webdriver.ChromeOptions()
 chrome_options.add_experimental_option("detach", True)

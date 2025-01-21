@@ -1,0 +1,8 @@
+selenium
+PyMuPDF
+gtts
+google-api-python-client
+django
+django-cors-headers
+djangorestframework
+python-dotenv

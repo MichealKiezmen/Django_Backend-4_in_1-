@@ -19,5 +19,6 @@ from django.urls import path, include
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/pdf_to_speech', include("PDF_to_Speech.urls")),
-    path('api/botautomation/', include('BotAutomation.urls'))
+    path('api/botautomation/', include('BotAutomation.urls')),
+    path("api/ratings/", include("ratings.urls"))
 ]

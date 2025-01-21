@@ -10,6 +10,7 @@
 
 # production
 /build
+/venv
 
 # misc
 /PDF_to_Speech/data/credentials.json

@@ -34,6 +34,7 @@ ALLOWED_HOSTS = ["*"]
 INSTALLED_APPS = [
     'PDF_to_Speech',
     'BotAutomation',
+    'ratings',
     'corsheaders',
     'rest_framework',
     'django.contrib.admin',
