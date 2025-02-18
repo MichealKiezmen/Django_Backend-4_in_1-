@@ -6,3 +6,5 @@ django
 django-cors-headers
 djangorestframework
 python-dotenv
+pymupdf
+cloudinary

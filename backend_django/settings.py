@@ -35,6 +35,7 @@ INSTALLED_APPS = [
     'PDF_to_Speech',
     'BotAutomation',
     'ratings',
+    'file_encryptor',
     'corsheaders',
     'rest_framework',
     'django.contrib.admin',
