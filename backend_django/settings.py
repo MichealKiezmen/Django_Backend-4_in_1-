@@ -32,6 +32,7 @@ ALLOWED_HOSTS = ["*"]
 # Application definition
 
 INSTALLED_APPS = [
+    'user',
     'PDF_to_Speech',
     'BotAutomation',
     'ratings',
