@@ -16,8 +16,11 @@ drive_upload = DriveClass()
 
 class Encryptor(APIView):
 
-    def get(self, request):
-        pass
+    def get(self, request, user_id):
+        found_data = FileEncryptModel.objects.filter(user=user_id)
+        serializer = FileEncryptModelSerializer(found_data, many=True).data
+        return Response({"data" : serializer }, status=status.HTTP_200_OK)
+
 
     def post(self, request, user_id):
 
