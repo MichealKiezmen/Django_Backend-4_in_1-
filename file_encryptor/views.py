@@ -29,6 +29,7 @@ class Encryptor(APIView):
         user_found = User.objects.filter(id=user_id).first()
 
         uploaded_file = request.FILES["document"]
+        returned_file_type = request.data.get("file_extension")
         save_path = os.path.join(settings.MEDIA_ROOT, "uploads", uploaded_file.name)
 
         # CREATE THE PDF FILE
@@ -45,21 +46,22 @@ class Encryptor(APIView):
 
         filename = uploaded_file.name.split(".")
         encrypted_save_path = os.path.join(settings.MEDIA_ROOT, "uploads", filename[0])
-        with open(f"{encrypted_save_path}.txt", "wb+") as file2:
+        with open(f"{encrypted_save_path}.{returned_file_type}", "wb+") as file2:
             file2.write(encrypted_data)
 
-        file_id = drive_upload.upload_file(f"{encrypted_save_path}.txt", f"{filename[0]}.txt")
+        file_id = drive_upload.upload_file(f"{encrypted_save_path}.{returned_file_type}", f"{filename[0]}.{returned_file_type}")
         file_url = drive_upload.get_file_url(file_id)
 
         if file_url is not None:
-            res = drive_upload.delete_file_after_upload(f"{encrypted_save_path}.txt")
+            res = drive_upload.delete_file_after_upload(f"{encrypted_save_path}.{returned_file_type}")
             res2 = drive_upload.delete_file_after_upload(save_path)
 
         result = {
             "encryption_key": str(key),
             "file_url": file_url,
             "user": user_id,
-            "file_extension": filename[1]
+            "file_extension": filename[1],
+            "file_name": uploaded_file.name
         }
         if user_found:
             serialized_data = FileEncryptModelSerializer(data=result)

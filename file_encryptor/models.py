@@ -7,7 +7,9 @@ class FileEncryptModel(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     encryption_key = models.TextField(unique=False)
     file_url = models.URLField(unique=False)
+    file_name = models.CharField(max_length=150, unique=False)
     file_extension = models.CharField(max_length=6, unique=False)
+    created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
-        return f"{self.user.username}:{self.file_id} "
+        return f"{self.user.username}:{self.file_name} "
