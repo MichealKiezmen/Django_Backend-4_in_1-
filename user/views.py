@@ -6,12 +6,35 @@ from .models import User
 from .serializers import UserSerializer
 from .services import create_access_token, create_refresh_token, token_required
 
-class UserAPI(APIView):
-    def get(self, request):
-        pass
 
+
+class AuthMe(APIView):
+
+    @token_required
+    def get(self, request):
+        token_Id = request.decoded_token["id"]
+        user = User.objects.get(verifierId=token_Id)
+
+        if user:
+            serialize_user = UserSerializer(user).data
+            return Response({"data": serialize_user}, status=status.HTTP_200_OK)
+
+
+class TokenRefresh(APIView):
+
+    #Refresh access tokenAPI
+    @token_required
     def post(self, request):
-        pass
+        token_Id = request.decoded_token["id"]
+        user = User.objects.get(verifierId=token_Id)
+        if user:
+            access_token = create_access_token(verifierId=user.verifierId)
+            return Response({"data": {
+                        "access_token": access_token,
+                        "refresh_token": user.refresh_token,
+                        }},  status=status.HTTP_200_OK)
+
+
 
 class LoginUser(APIView):
 
