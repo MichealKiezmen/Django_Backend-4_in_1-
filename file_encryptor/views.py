@@ -10,12 +10,14 @@ from django.conf import settings
 from backend_django.reusable_classes import DriveClass
 from .serializers import FileEncryptModelSerializer
 from .models import FileEncryptModel
+from user.services import token_required
 
 
 drive_upload = DriveClass()
 
 class Encryptor(APIView):
 
+    @token_required
     def get(self, request, user_id):
         found_data = FileEncryptModel.objects.filter(user=user_id)
         serializer = FileEncryptModelSerializer(found_data, many=True).data
