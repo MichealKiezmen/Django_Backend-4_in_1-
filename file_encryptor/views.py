@@ -3,7 +3,6 @@ from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.views import APIView
 from cryptography.fernet import Fernet
-import pymupdf
 from user.models import User
 from django.shortcuts import get_object_or_404
 from django.conf import settings
@@ -23,58 +22,79 @@ class Encryptor(APIView):
         serializer = FileEncryptModelSerializer(found_data, many=True).data
         return Response({"data" : serializer }, status=status.HTTP_200_OK)
 
-
     def post(self, request, user_id):
+        try:
+            key = Fernet.generate_key()
+            f = Fernet(key)
+            user_found = User.objects.filter(id=user_id).first()
+            uploaded_file = request.FILES["document"]
+            returned_file_type = request.data.get("file_extension")
+            save_path = os.path.join(settings.MEDIA_ROOT, "uploads", uploaded_file.name)
 
-        key = Fernet.generate_key()
-        f = Fernet(key)
-        user_found = User.objects.filter(id=user_id).first()
+            # CREATE THE PDF FILE
+            with open(save_path, "wb+") as file:
+                for chunk in uploaded_file.chunks():
+                    file.write(chunk)
 
-        uploaded_file = request.FILES["document"]
-        returned_file_type = request.data.get("file_extension")
-        save_path = os.path.join(settings.MEDIA_ROOT, "uploads", uploaded_file.name)
+            # READ THE PDF FILE AS BINARY
+            with open(save_path, "rb") as file:
+                data = file.read()
 
-        # CREATE THE PDF FILE
-        with open(save_path, "wb+") as file:
-            for chunk in uploaded_file.chunks():
-                file.write(chunk)
+            #ENCRYPT THE BINARY DATA
+            encrypted_data = f.encrypt(data)
 
-        # READ THE PDF FILE AS BINARY
-        with open(save_path, "rb") as file:
-            data = file.read()
+            filename = uploaded_file.name.split(".")
+            encrypted_save_path = os.path.join(settings.MEDIA_ROOT, "uploads", filename[0])
+            with open(f"{encrypted_save_path}.{returned_file_type}", "wb+") as file2:
+                file2.write(encrypted_data)
 
-        #ENCRYPT THE BINARY DATA
-        encrypted_data = f.encrypt(data)
+            file_id = drive_upload.upload_file(f"{encrypted_save_path}.{returned_file_type}", f"{filename[0]}.{returned_file_type}")
+            file_url = drive_upload.get_file_url(file_id)
 
-        filename = uploaded_file.name.split(".")
-        encrypted_save_path = os.path.join(settings.MEDIA_ROOT, "uploads", filename[0])
-        with open(f"{encrypted_save_path}.{returned_file_type}", "wb+") as file2:
-            file2.write(encrypted_data)
+            if file_url is not None:
+                res = drive_upload.delete_file_after_upload(f"{encrypted_save_path}.{returned_file_type}")
+                res2 = drive_upload.delete_file_after_upload(save_path)
 
-        file_id = drive_upload.upload_file(f"{encrypted_save_path}.{returned_file_type}", f"{filename[0]}.{returned_file_type}")
-        file_url = drive_upload.get_file_url(file_id)
-
-        if file_url is not None:
-            res = drive_upload.delete_file_after_upload(f"{encrypted_save_path}.{returned_file_type}")
-            res2 = drive_upload.delete_file_after_upload(save_path)
-
-        result = {
-            "encryption_key": str(key),
-            "file_url": file_url,
-            "user": user_id,
-            "file_extension": filename[1],
-            "file_name": uploaded_file.name
-        }
-        if user_found:
-            serialized_data = FileEncryptModelSerializer(data=result)
-            if serialized_data.is_valid():
-                serialized_data.save()
-                return Response(serialized_data.data, status=status.HTTP_201_CREATED)
+            result = {
+                "encryption_key": str(key),
+                "file_url": file_url,
+                "google_drive_file_id": file_id,
+                "user": user_id,
+                "file_extension": filename[1],
+                "file_name": uploaded_file.name
+            }
+            if user_found:
+                serialized_data = FileEncryptModelSerializer(data=result)
+                if serialized_data.is_valid():
+                    serialized_data.save()
+                    return Response(serialized_data.data, status=status.HTTP_201_CREATED)
+                else:
+                    return Response(serialized_data.errors, status=status.HTTP_400_BAD_REQUEST)
             else:
-                return Response(serialized_data.errors, status=status.HTTP_400_BAD_REQUEST)
-        else:
-            return Response(result, status=status.HTTP_200_OK)
+                return Response(result, status=status.HTTP_200_OK)
+        except Exception as e:
+            print("Error encrypting:", str(e))
+            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+
+
+class EncryptionActionsView(APIView):
+
+    @token_required
+    def delete(self, request, data_id):
+        found = get_object_or_404(FileEncryptModel, file_id=data_id)
+        error_msg = True
+
+        if found:
+            result = drive_upload.delete_file_from_google_drive(found.google_drive_file_id)
+            if result:
+                error_msg = False
+                found.delete()
+
+        if error_msg:
+            return Response({"error" : "File deletion unsuccessful" }, status=status.HTTP_404_NOT_FOUND)
+        else:
+            return Response({"message" : "File deleted successfully" }, status=status.HTTP_200_OK)
 
 
 class Decryptor(APIView):
@@ -83,41 +103,49 @@ class Decryptor(APIView):
         pass
 
     def post(self, request):
-        key = request.data["key"]
-        cleaned_key = key.strip("b'").strip("'").encode()
-        document = request.FILES["document"]
-        f = Fernet(cleaned_key)
+        try:
+            key = request.data["key"]
+            cleaned_key = key.strip("b'").strip("'").encode()
+            document = request.FILES["document"]
+            f = Fernet(cleaned_key)
 
-        key_found = FileEncryptModel.objects.filter(encryption_key=key).first()
-        save_path = os.path.join(settings.MEDIA_ROOT, "uploads", document.name)
+            key_found = FileEncryptModel.objects.filter(encryption_key=key).first()
+            if not key_found:
+                return Response({"error": "Wrong Decryption key."}, status=status.HTTP_404_NOT_FOUND)
 
-        # CREATE THE  FILE
-        with open(save_path, "wb+") as file:
-            for chunk in document.chunks():
-                file.write(chunk)
+            save_path = os.path.join(settings.MEDIA_ROOT, "uploads", document.name)
 
-        # READ THE FILE AS BINARY
-        with open(save_path, "rb") as file:
-            data = file.read()
+            # CREATE THE  FILE
+            with open(save_path, "wb+") as file:
+                for chunk in document.chunks():
+                    file.write(chunk)
 
-        decrypted = f.decrypt(data)
-        new_filename = save_path.rsplit(".", 1)[0]
+            # READ THE FILE AS BINARY
+            with open(save_path, "rb") as file:
+                data = file.read()
 
-        with open(f"{new_filename}_decrypted.{key_found.file_extension}", "wb+") as file:
-                file.write(decrypted)
+            decrypted = f.decrypt(data)
+            new_filename = save_path.rsplit(".", 1)[0]
 
-        filename = document.name.split(".")
-        file_id = drive_upload.upload_file(
-            f"{new_filename}_decrypted.{key_found.file_extension}",
-            f"{filename[0]}.{key_found.file_extension}"
-            )
-        file_url = drive_upload.get_file_url(file_id)
+            with open(f"{new_filename}_decrypted.{key_found.file_extension}", "wb+") as file:
+                    file.write(decrypted)
 
-        if file_url is not None:
-            res = drive_upload.delete_file_after_upload(f"{new_filename}_decrypted.{key_found.file_extension}")
-            res2 = drive_upload.delete_file_after_upload(save_path)
+            filename = document.name.split(".")
+            file_id = drive_upload.upload_file(
+                f"{new_filename}_decrypted.{key_found.file_extension}",
+                f"{filename[0]}.{key_found.file_extension}"
+                )
+            file_url = drive_upload.get_file_url(file_id)
 
-        result = {
-            "file_url": file_url,
-        }
-        return Response(result, status=status.HTTP_200_OK)
+            if file_url is not None:
+                res = drive_upload.delete_file_after_upload(f"{new_filename}_decrypted.{key_found.file_extension}")
+                res2 = drive_upload.delete_file_after_upload(save_path)
+
+            result = {
+                "file_url": file_url,
+            }
+            return Response(result, status=status.HTTP_200_OK)
+
+        except Exception as e:
+            print("Error encrypting:", str(e))
+            return Response({"error": str(e) or f"The decryption key provided has no relation to the file: {document.name}."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
