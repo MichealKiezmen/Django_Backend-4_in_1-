@@ -134,7 +134,7 @@ JWT_SECRET="miracle"
 
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173",
-    # Add other trusted origins as needed
+    "https://safe-encrypt.michealfadaini.net"
 ]
 
 # Add these lines to configure media files
